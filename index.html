@@ -1,0 +1,2971 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <title>Hub Exploration Challenge</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <style>
+    body { overscroll-behavior-y: contain; }
+  </style>
+</head>
+<body>
+  <div id="root"></div>
+  <script>
+    window.storage = {
+      async get(key) {
+        const value = localStorage.getItem(key);
+        return value !== null ? { key, value } : null;
+      },
+      async set(key, value) {
+        localStorage.setItem(key, value);
+        return { key, value };
+      },
+      async delete(key) {
+        localStorage.removeItem(key);
+        return { key, deleted: true };
+      },
+      async list(prefix = '') {
+        const keys = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key.startsWith(prefix)) keys.push(key);
+        }
+        return { keys, prefix };
+      }
+    };
+  </script>
+  <script>
+const {
+  useState,
+  useEffect,
+  useMemo
+} = React;
+
+// ============================================================================
+// ERROR BOUNDARY
+// ============================================================================
+
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = {
+      hasError: false,
+      error: null
+    };
+  }
+  static getDerivedStateFromError(error) {
+    return {
+      hasError: true,
+      error
+    };
+  }
+  render() {
+    if (this.state.hasError) {
+      return /*#__PURE__*/React.createElement("div", {
+        className: "min-h-screen bg-red-50 flex items-center justify-center p-6"
+      }, /*#__PURE__*/React.createElement("div", {
+        className: "bg-white rounded-xl p-8 max-w-md w-full shadow-xl text-center"
+      }, /*#__PURE__*/React.createElement("h1", {
+        className: "text-xl font-bold text-red-700 mb-4"
+      }, "Something went wrong"), /*#__PURE__*/React.createElement("p", {
+        className: "text-stone-600 mb-4"
+      }, this.state.error?.message || 'Unknown error'), /*#__PURE__*/React.createElement("button", {
+        onClick: () => {
+          localStorage.clear();
+          window.location.reload();
+        },
+        className: "px-4 py-2 bg-red-600 text-white rounded-lg font-medium"
+      }, "Clear Data & Reload")));
+    }
+    return this.props.children;
+  }
+}
+
+// ============================================================================
+// CONFIGURATION
+// ============================================================================
+
+const ADMIN_PASSWORD = 'pisgah2026'; // Change this!
+
+const STORAGE_KEYS = {
+  USER: 'hub-challenge-user',
+  ALL_USERS: 'hub-challenge-all-users',
+  ITEMS: 'hub-challenge-items',
+  CHALLENGES: 'hub-challenge-challenges',
+  FLAGS: 'hub-challenge-flags',
+  TICKS: 'hub-challenge-ticks',
+  ADMIN_MODE: 'hub-challenge-admin'
+};
+
+// ============================================================================
+// DATA & CONSTANTS
+// ============================================================================
+
+const AREAS = {
+  PISGAH: 'Pisgah Ranger District',
+  DUPONT: 'DuPont State Forest'
+};
+const ITEM_TYPES = {
+  TRAIL: 'trail',
+  WATERFALL: 'waterfall',
+  SUMMIT: 'summit'
+};
+
+// Real Pisgah Ranger District data from the provided list
+const INITIAL_ITEMS = [
+// === TRAILS - Bent Creek ===
+{
+  id: 't-bc-1',
+  name: 'Bent Creek Gap Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: 'Connector'
+}, {
+  id: 't-bc-2',
+  name: 'Ingles Field Gap',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-3',
+  name: 'Greens Lick',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-4',
+  name: 'Ledford Branch',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-5',
+  name: 'Hard Times Road',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: 'Gravel'
+}, {
+  id: 't-bc-6',
+  name: 'Wolf Branch',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-7',
+  name: 'Explorer Loop',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-8',
+  name: 'Deer Lake Lodge Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-9',
+  name: 'Hominy Creek Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-10',
+  name: 'Lower Sidehill',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-11',
+  name: 'Upper Sidehill',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-12',
+  name: 'Lower Ingles Field Gap',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-13',
+  name: 'Lower Hard Times',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-14',
+  name: 'Trace Ridge',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: 'Directional'
+}, {
+  id: 't-bc-15',
+  name: 'Spencer Branch',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-16',
+  name: 'Fletcher Creek',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-17',
+  name: 'Little Hickory Top',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-18',
+  name: 'Hickory Branch',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-19',
+  name: 'Boyd Branch',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-20',
+  name: 'Rice Pinnacle',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-21',
+  name: 'Lower Cove Creek',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-bc-22',
+  name: 'Upper Cove Creek',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+},
+// === TRAILS - Davidson River ===
+{
+  id: 't-dr-1',
+  name: 'Davidson River Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: 'Multi-use'
+}, {
+  id: 't-dr-2',
+  name: 'Cove Creek Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-dr-3',
+  name: 'Looking Glass Rock Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'no',
+  notes: 'Hike only'
+}, {
+  id: 't-dr-4',
+  name: 'Art Loeb Trail (lower)',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'partial',
+  notes: 'Wilderness beyond'
+}, {
+  id: 't-dr-5',
+  name: 'Cat Gap Loop',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-dr-6',
+  name: 'John Rock Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-dr-7',
+  name: 'Cedar Rock Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-dr-8',
+  name: 'Butter Gap',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-dr-9',
+  name: 'Buckhorn Gap',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-dr-10',
+  name: 'Thrift Cove',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-dr-11',
+  name: 'Black Mountain Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: 'Directional'
+}, {
+  id: 't-dr-12',
+  name: 'Avery Creek',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-dr-13',
+  name: 'Clawhammer Road',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: 'Gravel'
+}, {
+  id: 't-dr-14',
+  name: 'Big Creek Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: ''
+},
+// === TRAILS - South Mills / Mills River ===
+{
+  id: 't-sm-1',
+  name: 'Turkey Pen Gap',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'South Mills',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-sm-2',
+  name: 'South Mills River Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'South Mills',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-sm-3',
+  name: 'Mullinax Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'South Mills',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-sm-4',
+  name: 'Laurel Creek Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'South Mills',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-sm-5',
+  name: 'Cantrell Creek',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'South Mills',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-sm-6',
+  name: 'Squirrel Gap Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'South Mills',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-sm-7',
+  name: 'Bradley Creek',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'South Mills',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-sm-8',
+  name: 'North Mills River Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'South Mills',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-sm-9',
+  name: 'Fletcher Creek Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'South Mills',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-sm-10',
+  name: 'Trace Ridge Road',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'South Mills',
+  bikeAllowed: 'yes',
+  notes: 'Gravel'
+},
+// === TRAILS - Looking Glass ===
+{
+  id: 't-lg-1',
+  name: 'Farlow Gap Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Looking Glass',
+  bikeAllowed: 'yes',
+  notes: 'Advanced'
+}, {
+  id: 't-lg-2',
+  name: 'Daniel Ridge Loop',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Looking Glass',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 't-lg-3',
+  name: 'Pilot Cove / Pilot Rock Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Looking Glass',
+  bikeAllowed: 'no',
+  notes: 'Hike only'
+}, {
+  id: 't-lg-4',
+  name: 'Forest Road 475',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Looking Glass',
+  bikeAllowed: 'yes',
+  notes: 'Gravel'
+}, {
+  id: 't-lg-5',
+  name: 'Forest Road 475B',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Looking Glass',
+  bikeAllowed: 'yes',
+  notes: ''
+},
+// === TRAILS - Shining Rock Wilderness ===
+{
+  id: 't-sr-1',
+  name: 'Art Loeb Trail (Shining Rock)',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Shining Rock',
+  bikeAllowed: 'no',
+  notes: 'Wilderness'
+}, {
+  id: 't-sr-2',
+  name: 'Ivestor Gap Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Shining Rock',
+  bikeAllowed: 'no',
+  notes: 'Wilderness'
+}, {
+  id: 't-sr-3',
+  name: 'Greasy Cove Trail',
+  type: ITEM_TYPES.TRAIL,
+  area: AREAS.PISGAH,
+  subArea: 'Shining Rock',
+  bikeAllowed: 'no',
+  notes: 'Wilderness'
+},
+// === SUMMITS ===
+{
+  id: 's-1',
+  name: 'Looking Glass Rock',
+  type: ITEM_TYPES.SUMMIT,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'no',
+  notes: 'Iconic'
+}, {
+  id: 's-2',
+  name: 'John Rock',
+  type: ITEM_TYPES.SUMMIT,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 's-3',
+  name: 'Cedar Rock',
+  type: ITEM_TYPES.SUMMIT,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: 'Slickrock'
+}, {
+  id: 's-4',
+  name: 'Pilot Rock',
+  type: ITEM_TYPES.SUMMIT,
+  area: AREAS.PISGAH,
+  subArea: 'Looking Glass',
+  bikeAllowed: 'no',
+  notes: ''
+}, {
+  id: 's-5',
+  name: 'Black Mountain',
+  type: ITEM_TYPES.SUMMIT,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'partial',
+  notes: ''
+}, {
+  id: 's-6',
+  name: 'Chestnut Knob',
+  type: ITEM_TYPES.SUMMIT,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 's-7',
+  name: 'Rich Knob',
+  type: ITEM_TYPES.SUMMIT,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 's-8',
+  name: 'Little Hickory Top',
+  type: ITEM_TYPES.SUMMIT,
+  area: AREAS.PISGAH,
+  subArea: 'Bent Creek',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 's-9',
+  name: 'Bearwallow Mountain',
+  type: ITEM_TYPES.SUMMIT,
+  area: AREAS.PISGAH,
+  subArea: 'South Mills',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 's-10',
+  name: 'Grass Knob',
+  type: ITEM_TYPES.SUMMIT,
+  area: AREAS.PISGAH,
+  subArea: 'South Mills',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 's-11',
+  name: 'Shining Rock',
+  type: ITEM_TYPES.SUMMIT,
+  area: AREAS.PISGAH,
+  subArea: 'Shining Rock',
+  bikeAllowed: 'no',
+  notes: 'Wilderness'
+}, {
+  id: 's-12',
+  name: 'Tennent Mountain',
+  type: ITEM_TYPES.SUMMIT,
+  area: AREAS.PISGAH,
+  subArea: 'Shining Rock',
+  bikeAllowed: 'no',
+  notes: 'Wilderness'
+}, {
+  id: 's-13',
+  name: 'Cold Mountain',
+  type: ITEM_TYPES.SUMMIT,
+  area: AREAS.PISGAH,
+  subArea: 'Shining Rock',
+  bikeAllowed: 'no',
+  notes: 'Wilderness'
+},
+// === WATERFALLS ===
+{
+  id: 'w-1',
+  name: 'Looking Glass Falls',
+  type: ITEM_TYPES.WATERFALL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: 'Roadside'
+}, {
+  id: 'w-2',
+  name: 'Sliding Rock',
+  type: ITEM_TYPES.WATERFALL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: 'Seasonal'
+}, {
+  id: 'w-3',
+  name: 'Moore Cove Falls',
+  type: ITEM_TYPES.WATERFALL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'no',
+  notes: 'Hike only'
+}, {
+  id: 'w-4',
+  name: 'Cove Creek Falls',
+  type: ITEM_TYPES.WATERFALL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 'w-5',
+  name: 'Daniel Ridge Falls',
+  type: ITEM_TYPES.WATERFALL,
+  area: AREAS.PISGAH,
+  subArea: 'Looking Glass',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 'w-6',
+  name: 'Key Falls',
+  type: ITEM_TYPES.WATERFALL,
+  area: AREAS.PISGAH,
+  subArea: 'South Mills',
+  bikeAllowed: 'yes',
+  notes: ''
+}, {
+  id: 'w-7',
+  name: 'Upper Cascades',
+  type: ITEM_TYPES.WATERFALL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'yes',
+  notes: 'Roadside'
+}, {
+  id: 'w-8',
+  name: 'Skinny Dip Falls',
+  type: ITEM_TYPES.WATERFALL,
+  area: AREAS.PISGAH,
+  subArea: 'Shining Rock',
+  bikeAllowed: 'yes',
+  notes: 'Blue Ridge Parkway'
+}, {
+  id: 'w-9',
+  name: 'Dill Falls',
+  type: ITEM_TYPES.WATERFALL,
+  area: AREAS.PISGAH,
+  subArea: 'Shining Rock',
+  bikeAllowed: 'no',
+  notes: 'Wilderness'
+}, {
+  id: 'w-10',
+  name: 'Courthouse Falls',
+  type: ITEM_TYPES.WATERFALL,
+  area: AREAS.PISGAH,
+  subArea: 'Davidson River',
+  bikeAllowed: 'no',
+  notes: ''
+}];
+
+// Generate a short, readable join code
+function generateJoinCode() {
+  const words = ['PINE', 'OAK', 'FERN', 'MOSS', 'ROCK', 'PEAK', 'FALL', 'TRAIL', 'RIDGE', 'CREEK'];
+  const word = words[Math.floor(Math.random() * words.length)];
+  const num = Math.floor(Math.random() * 90) + 10;
+  return `${word}${num}`;
+}
+
+// Default challenges
+const INITIAL_CHALLENGES = [{
+  id: 'challenge-1',
+  name: 'Hub Staff – Winter 2026',
+  status: 'active',
+  accessMode: 'open',
+  joinCode: 'WINTER26',
+  startDate: '2026-01-01',
+  endDate: '2026-03-31',
+  participants: [],
+  createdBy: 'system',
+  scope: null
+}];
+
+// ============================================================================
+// STORAGE HELPERS
+// ============================================================================
+
+async function loadFromStorage(key, defaultValue) {
+  try {
+    const result = await window.storage.get(key);
+    if (result && result.value) {
+      return JSON.parse(result.value);
+    }
+    return defaultValue;
+  } catch (e) {
+    console.log('Storage load error (using default):', e);
+    return defaultValue;
+  }
+}
+async function saveToStorage(key, value) {
+  try {
+    await window.storage.set(key, JSON.stringify(value));
+  } catch (e) {
+    console.log('Storage save error:', e);
+  }
+}
+
+// ============================================================================
+// ICONS
+// ============================================================================
+
+const TrailIcon = ({
+  className = "w-5 h-5"
+}) => /*#__PURE__*/React.createElement("svg", {
+  className: className,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: "2",
+  strokeLinecap: "round",
+  strokeLinejoin: "round"
+}, /*#__PURE__*/React.createElement("path", {
+  d: "M4 19L8 13L12 15L16 9L20 12"
+}), /*#__PURE__*/React.createElement("circle", {
+  cx: "4",
+  cy: "19",
+  r: "1",
+  fill: "currentColor"
+}), /*#__PURE__*/React.createElement("circle", {
+  cx: "20",
+  cy: "12",
+  r: "1",
+  fill: "currentColor"
+}));
+const WaterfallIcon = ({
+  className = "w-5 h-5"
+}) => /*#__PURE__*/React.createElement("svg", {
+  className: className,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: "2",
+  strokeLinecap: "round",
+  strokeLinejoin: "round"
+}, /*#__PURE__*/React.createElement("path", {
+  d: "M7 4v4M7 12v4M7 20v1M12 2v6M12 12v4M12 20v1M17 4v4M17 12v4M17 20v1"
+}));
+const SummitIcon = ({
+  className = "w-5 h-5"
+}) => /*#__PURE__*/React.createElement("svg", {
+  className: className,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: "2",
+  strokeLinecap: "round",
+  strokeLinejoin: "round"
+}, /*#__PURE__*/React.createElement("path", {
+  d: "M12 4L3 20h18L12 4z"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M12 4v6"
+}));
+const FlagIcon = ({
+  className = "w-5 h-5"
+}) => /*#__PURE__*/React.createElement("svg", {
+  className: className,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: "2",
+  strokeLinecap: "round",
+  strokeLinejoin: "round"
+}, /*#__PURE__*/React.createElement("path", {
+  d: "M4 21V4"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M4 4h12l-2 4 2 4H4"
+}));
+const CheckIcon = ({
+  className = "w-5 h-5"
+}) => /*#__PURE__*/React.createElement("svg", {
+  className: className,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: "2",
+  strokeLinecap: "round",
+  strokeLinejoin: "round"
+}, /*#__PURE__*/React.createElement("path", {
+  d: "M20 6L9 17l-5-5"
+}));
+const ListIcon = ({
+  className = "w-5 h-5"
+}) => /*#__PURE__*/React.createElement("svg", {
+  className: className,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: "2",
+  strokeLinecap: "round",
+  strokeLinejoin: "round"
+}, /*#__PURE__*/React.createElement("path", {
+  d: "M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"
+}));
+const TrophyIcon = ({
+  className = "w-5 h-5"
+}) => /*#__PURE__*/React.createElement("svg", {
+  className: className,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: "2",
+  strokeLinecap: "round",
+  strokeLinejoin: "round"
+}, /*#__PURE__*/React.createElement("path", {
+  d: "M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M4 22h16"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M10 22v-4a2 2 0 0 1 2-2v0a2 2 0 0 1 2 2v4"
+}), /*#__PURE__*/React.createElement("rect", {
+  x: "6",
+  y: "2",
+  width: "12",
+  height: "10",
+  rx: "2"
+}));
+const CloseIcon = ({
+  className = "w-5 h-5"
+}) => /*#__PURE__*/React.createElement("svg", {
+  className: className,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: "2",
+  strokeLinecap: "round",
+  strokeLinejoin: "round"
+}, /*#__PURE__*/React.createElement("path", {
+  d: "M18 6L6 18M6 6l12 12"
+}));
+const ChevronDownIcon = ({
+  className = "w-5 h-5"
+}) => /*#__PURE__*/React.createElement("svg", {
+  className: className,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: "2",
+  strokeLinecap: "round",
+  strokeLinejoin: "round"
+}, /*#__PURE__*/React.createElement("path", {
+  d: "M6 9l6 6 6-6"
+}));
+const PlusIcon = ({
+  className = "w-5 h-5"
+}) => /*#__PURE__*/React.createElement("svg", {
+  className: className,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: "2",
+  strokeLinecap: "round",
+  strokeLinejoin: "round"
+}, /*#__PURE__*/React.createElement("path", {
+  d: "M12 5v14M5 12h14"
+}));
+const FilterIcon = ({
+  className = "w-5 h-5"
+}) => /*#__PURE__*/React.createElement("svg", {
+  className: className,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: "2",
+  strokeLinecap: "round",
+  strokeLinejoin: "round"
+}, /*#__PURE__*/React.createElement("polygon", {
+  points: "22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"
+}));
+const SettingsIcon = ({
+  className = "w-5 h-5"
+}) => /*#__PURE__*/React.createElement("svg", {
+  className: className,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: "2",
+  strokeLinecap: "round",
+  strokeLinejoin: "round"
+}, /*#__PURE__*/React.createElement("circle", {
+  cx: "12",
+  cy: "12",
+  r: "3"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"
+}));
+const BikeIcon = ({
+  className = "w-5 h-5"
+}) => /*#__PURE__*/React.createElement("svg", {
+  className: className,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: "2",
+  strokeLinecap: "round",
+  strokeLinejoin: "round"
+}, /*#__PURE__*/React.createElement("circle", {
+  cx: "5.5",
+  cy: "17.5",
+  r: "3.5"
+}), /*#__PURE__*/React.createElement("circle", {
+  cx: "18.5",
+  cy: "17.5",
+  r: "3.5"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M15 6a1 1 0 1 0 0-2 1 1 0 0 0 0 2zm-3 11.5V14l-3-3 4-3 2 3h3"
+}));
+const LockIcon = ({
+  className = "w-5 h-5"
+}) => /*#__PURE__*/React.createElement("svg", {
+  className: className,
+  viewBox: "0 0 24 24",
+  fill: "none",
+  stroke: "currentColor",
+  strokeWidth: "2",
+  strokeLinecap: "round",
+  strokeLinejoin: "round"
+}, /*#__PURE__*/React.createElement("rect", {
+  x: "3",
+  y: "11",
+  width: "18",
+  height: "11",
+  rx: "2",
+  ry: "2"
+}), /*#__PURE__*/React.createElement("path", {
+  d: "M7 11V7a5 5 0 0 1 10 0v4"
+}));
+const TypeIcon = ({
+  type,
+  className
+}) => {
+  switch (type) {
+    case ITEM_TYPES.TRAIL:
+      return /*#__PURE__*/React.createElement(TrailIcon, {
+        className: className
+      });
+    case ITEM_TYPES.WATERFALL:
+      return /*#__PURE__*/React.createElement(WaterfallIcon, {
+        className: className
+      });
+    case ITEM_TYPES.SUMMIT:
+      return /*#__PURE__*/React.createElement(SummitIcon, {
+        className: className
+      });
+    default:
+      return null;
+  }
+};
+
+// ============================================================================
+// MAIN APP
+// ============================================================================
+
+export default function HubExplorationChallenge() {
+  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState(null);
+  const [allUsers, setAllUsers] = useState([]);
+  const [items, setItems] = useState(INITIAL_ITEMS);
+  const [challenges, setChallenges] = useState(INITIAL_CHALLENGES);
+  const [flags, setFlags] = useState([]);
+  const [ticks, setTicks] = useState([]);
+  const [isAdmin, setIsAdmin] = useState(false);
+
+  // UI state
+  const [activeChallengeId, setActiveChallengeId] = useState('challenge-1');
+  const [challengeTab, setChallengeTab] = useState('items'); // 'items' or 'leaders'
+  const [selectedItem, setSelectedItem] = useState(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [showCreateChallenge, setShowCreateChallenge] = useState(false);
+  const [showJoinChallenge, setShowJoinChallenge] = useState(false);
+  const [showAdminPanel, setShowAdminPanel] = useState(false);
+  const [filters, setFilters] = useState({
+    area: null,
+    type: null,
+    subArea: null,
+    availableOnly: false,
+    sortBy: 'alpha'
+  });
+
+  // Load data from storage on mount
+  useEffect(() => {
+    async function loadData() {
+      const [storedUser, storedUsers, storedItems, storedChallenges, storedFlags, storedTicks, storedAdmin] = await Promise.all([loadFromStorage(STORAGE_KEYS.USER, null), loadFromStorage(STORAGE_KEYS.ALL_USERS, []), loadFromStorage(STORAGE_KEYS.ITEMS, INITIAL_ITEMS), loadFromStorage(STORAGE_KEYS.CHALLENGES, INITIAL_CHALLENGES), loadFromStorage(STORAGE_KEYS.FLAGS, []), loadFromStorage(STORAGE_KEYS.TICKS, []), loadFromStorage(STORAGE_KEYS.ADMIN_MODE, false)]);
+      setUser(storedUser);
+      setAllUsers(storedUsers);
+      setItems(storedItems);
+      setChallenges(storedChallenges);
+      setFlags(storedFlags);
+      setTicks(storedTicks);
+      setIsAdmin(storedAdmin);
+      setLoading(false);
+    }
+    loadData();
+  }, []);
+
+  // Save data when it changes
+  useEffect(() => {
+    if (!loading) saveToStorage(STORAGE_KEYS.USER, user);
+  }, [user, loading]);
+  useEffect(() => {
+    if (!loading) saveToStorage(STORAGE_KEYS.ALL_USERS, allUsers);
+  }, [allUsers, loading]);
+  useEffect(() => {
+    if (!loading) saveToStorage(STORAGE_KEYS.ITEMS, items);
+  }, [items, loading]);
+  useEffect(() => {
+    if (!loading) saveToStorage(STORAGE_KEYS.CHALLENGES, challenges);
+  }, [challenges, loading]);
+  useEffect(() => {
+    if (!loading) saveToStorage(STORAGE_KEYS.FLAGS, flags);
+  }, [flags, loading]);
+  useEffect(() => {
+    if (!loading) saveToStorage(STORAGE_KEYS.TICKS, ticks);
+  }, [ticks, loading]);
+  useEffect(() => {
+    if (!loading) saveToStorage(STORAGE_KEYS.ADMIN_MODE, isAdmin);
+  }, [isAdmin, loading]);
+
+  // Get current challenge and check status
+  const activeChallenge = challenges.find(c => c.id === activeChallengeId);
+  const challengeStatus = useMemo(() => {
+    if (!activeChallenge) return 'none';
+    const now = new Date();
+    const start = activeChallenge.startDate ? new Date(activeChallenge.startDate) : null;
+    const end = activeChallenge.endDate ? new Date(activeChallenge.endDate) : null;
+    if (start && now < start) return 'upcoming';
+    if (end && now > end) return 'ended';
+    return 'active';
+  }, [activeChallenge]);
+
+  // Get participants for current challenge
+  const challengeParticipants = useMemo(() => {
+    if (!activeChallenge) return [];
+    return allUsers.filter(u => activeChallenge.participants.includes(u.id));
+  }, [activeChallenge, allUsers]);
+
+  // Filter items by challenge itemIds (or show all if no itemIds defined - for backwards compatibility)
+  const scopedItems = useMemo(() => {
+    if (!activeChallenge) return items;
+    // If challenge has specific itemIds, use those; otherwise fall back to scope.area or all items
+    if (activeChallenge.itemIds && activeChallenge.itemIds.length > 0) {
+      return items.filter(item => activeChallenge.itemIds.includes(item.id));
+    }
+    if (activeChallenge.scope?.area) {
+      return items.filter(item => item.area === activeChallenge.scope.area);
+    }
+    return items;
+  }, [items, activeChallenge]);
+
+  // Get unique sub-areas for filter dropdown
+  const subAreas = useMemo(() => {
+    const areas = new Set(scopedItems.map(i => i.subArea));
+    return Array.from(areas).sort();
+  }, [scopedItems]);
+
+  // Loading state
+  if (loading) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "min-h-screen bg-stone-100 flex items-center justify-center"
+    }, /*#__PURE__*/React.createElement("p", {
+      className: "text-stone-500"
+    }, "Loading..."));
+  }
+
+  // Onboarding
+  if (!user) {
+    const handleRegister = newUser => {
+      const updatedUsers = [...allUsers, newUser];
+      setAllUsers(updatedUsers);
+      setUser(newUser);
+
+      // Auto-join the default challenge
+      if (challenges.length > 0) {
+        const defaultChallenge = challenges[0];
+        if (!defaultChallenge.participants.includes(newUser.id)) {
+          setChallenges(challenges.map(c => c.id === defaultChallenge.id ? {
+            ...c,
+            participants: [...c.participants, newUser.id]
+          } : c));
+        }
+      }
+    };
+    const handleLogin = existingUser => {
+      setUser(existingUser);
+    };
+    return /*#__PURE__*/React.createElement(Onboarding, {
+      onComplete: handleRegister,
+      onLogin: handleLogin,
+      existingUsers: allUsers
+    });
+  }
+
+  // Handlers
+  const handleFlag = flagData => {
+    setFlags(prev => [...prev, flagData]);
+    setSelectedItem(null);
+  };
+  const handleTick = tickData => {
+    setTicks(prev => [...prev, tickData]);
+    setSelectedItem(null);
+  };
+  const handleCreateChallenge = newChallenge => {
+    setChallenges(prev => [...prev, newChallenge]);
+    setActiveChallengeId(newChallenge.id);
+    setShowCreateChallenge(false);
+  };
+  const handleJoinChallenge = code => {
+    const challenge = challenges.find(c => c.joinCode?.toUpperCase() === code.toUpperCase());
+    if (challenge) {
+      if (!challenge.participants.includes(user.id)) {
+        setChallenges(prev => prev.map(c => c.id === challenge.id ? {
+          ...c,
+          participants: [...c.participants, user.id]
+        } : c));
+      }
+      setActiveChallengeId(challenge.id);
+      setShowJoinChallenge(false);
+      return {
+        success: true,
+        challenge
+      };
+    }
+    return {
+      success: false
+    };
+  };
+  const handleRevokeFlag = flagId => {
+    setFlags(prev => prev.filter(f => f.id !== flagId));
+  };
+  const handleAddItem = newItem => {
+    setItems(prev => [...prev, newItem]);
+  };
+  const handleUpdateUser = updatedUser => {
+    setAllUsers(prev => prev.map(u => u.id === updatedUser.id ? updatedUser : u));
+    if (updatedUser.id === user.id) {
+      setUser(updatedUser);
+    }
+  };
+  const handleLogout = () => {
+    setUser(null);
+    setShowAdminPanel(false);
+  };
+  const selectedItemFlag = selectedItem ? flags.find(f => f.itemId === selectedItem.id && f.challengeId === activeChallengeId) : null;
+  const selectedItemUserTick = selectedItem ? ticks.find(t => t.itemId === selectedItem.id && t.challengeId === activeChallengeId && t.userId === user.id) : null;
+  return /*#__PURE__*/React.createElement("div", {
+    className: "min-h-screen bg-stone-100 flex flex-col"
+  }, /*#__PURE__*/React.createElement("header", {
+    className: "bg-emerald-900 text-white px-4 py-3 flex items-center gap-3 sticky top-0 z-50"
+  }, activeChallengeId && activeChallenge ? /*#__PURE__*/React.createElement(React.Fragment, null, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setActiveChallengeId(null),
+    className: "p-1 -ml-1 hover:bg-white/10 rounded"
+  }, /*#__PURE__*/React.createElement(ChevronDownIcon, {
+    className: "w-5 h-5 rotate-90"
+  })), /*#__PURE__*/React.createElement("h1", {
+    className: "text-lg font-bold flex-1 truncate"
+  }, activeChallenge.name)) : /*#__PURE__*/React.createElement("h1", {
+    className: "text-lg font-bold flex-1"
+  }, "Hub Challenge"), activeChallengeId && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowFilters(!showFilters),
+    className: "p-2 bg-white/10 rounded hover:bg-white/20"
+  }, /*#__PURE__*/React.createElement(FilterIcon, {
+    className: "w-5 h-5"
+  })), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowAdminPanel(true),
+    className: `p-2 rounded hover:bg-white/20 ${isAdmin ? 'bg-amber-600' : 'bg-white/10'}`
+  }, /*#__PURE__*/React.createElement(SettingsIcon, {
+    className: "w-5 h-5"
+  }))), showFilters && activeChallengeId && /*#__PURE__*/React.createElement("div", {
+    className: "bg-white border-b border-stone-200 px-4 py-3 flex flex-wrap gap-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-col gap-1"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-medium text-stone-600"
+  }, "Type"), /*#__PURE__*/React.createElement("select", {
+    value: filters.type || '',
+    onChange: e => setFilters(f => ({
+      ...f,
+      type: e.target.value || null
+    })),
+    className: "px-2 py-1 border border-stone-300 rounded text-sm"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "All Types"), /*#__PURE__*/React.createElement("option", {
+    value: ITEM_TYPES.TRAIL
+  }, "Trails"), /*#__PURE__*/React.createElement("option", {
+    value: ITEM_TYPES.WATERFALL
+  }, "Waterfalls"), /*#__PURE__*/React.createElement("option", {
+    value: ITEM_TYPES.SUMMIT
+  }, "Summits"))), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-col gap-1"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-medium text-stone-600"
+  }, "Sub-area"), /*#__PURE__*/React.createElement("select", {
+    value: filters.subArea || '',
+    onChange: e => setFilters(f => ({
+      ...f,
+      subArea: e.target.value || null
+    })),
+    className: "px-2 py-1 border border-stone-300 rounded text-sm"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: ""
+  }, "All Sub-areas"), subAreas.map(sa => /*#__PURE__*/React.createElement("option", {
+    key: sa,
+    value: sa
+  }, sa)))), /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-col gap-1"
+  }, /*#__PURE__*/React.createElement("label", {
+    className: "text-xs font-medium text-stone-600"
+  }, "Sort"), /*#__PURE__*/React.createElement("select", {
+    value: filters.sortBy,
+    onChange: e => setFilters(f => ({
+      ...f,
+      sortBy: e.target.value
+    })),
+    className: "px-2 py-1 border border-stone-300 rounded text-sm"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "alpha"
+  }, "Name (A-Z)"), /*#__PURE__*/React.createElement("option", {
+    value: "type"
+  }, "Type"), /*#__PURE__*/React.createElement("option", {
+    value: "subarea"
+  }, "Sub-area"), /*#__PURE__*/React.createElement("option", {
+    value: "available"
+  }, "Available First"))), /*#__PURE__*/React.createElement("label", {
+    className: "flex items-center gap-2 text-sm cursor-pointer self-end pb-1"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: filters.availableOnly || false,
+    onChange: e => setFilters(f => ({
+      ...f,
+      availableOnly: e.target.checked
+    }))
+  }), "Available only")), activeChallengeId && challengeStatus === 'ended' && /*#__PURE__*/React.createElement("div", {
+    className: "bg-stone-200 text-stone-700 text-center py-2 text-sm"
+  }, "This challenge has ended. Items are view-only."), /*#__PURE__*/React.createElement("main", {
+    className: "flex-1 overflow-y-auto"
+  }, !activeChallengeId ? /*#__PURE__*/React.createElement(ChallengeHome, {
+    challenges: challenges,
+    userId: user.id,
+    activeChallengeId: activeChallengeId,
+    onSelectChallenge: id => {
+      setActiveChallengeId(id);
+      setChallengeTab('items');
+    },
+    onJoinChallenge: handleJoinChallenge,
+    onShowJoinModal: () => setShowJoinChallenge(true),
+    flags: flags
+  }) : /*#__PURE__*/React.createElement(ChallengeView, {
+    challenge: activeChallenge,
+    items: scopedItems,
+    flags: flags,
+    ticks: ticks,
+    userId: user.id,
+    allUsers: allUsers,
+    challengeParticipants: challengeParticipants,
+    challengeStatus: challengeStatus,
+    filters: filters,
+    onItemSelect: setSelectedItem,
+    isAdmin: isAdmin,
+    onRevokeFlag: handleRevokeFlag,
+    challengeTab: challengeTab,
+    setChallengeTab: setChallengeTab
+  })), selectedItem && /*#__PURE__*/React.createElement(ItemDetail, {
+    item: selectedItem,
+    flag: selectedItemFlag,
+    userTick: selectedItemUserTick,
+    userId: user.id,
+    challengeId: activeChallengeId,
+    challengeStatus: challengeStatus,
+    onFlag: handleFlag,
+    onTick: handleTick,
+    onClose: () => setSelectedItem(null),
+    allUsers: allUsers,
+    challengeParticipants: challengeParticipants,
+    isAdmin: isAdmin,
+    onRevokeFlag: handleRevokeFlag
+  }), showCreateChallenge && /*#__PURE__*/React.createElement(CreateChallengeModal, {
+    onClose: () => setShowCreateChallenge(false),
+    onCreate: handleCreateChallenge,
+    userId: user.id,
+    allItems: items
+  }), showJoinChallenge && /*#__PURE__*/React.createElement(JoinChallengeModal, {
+    onClose: () => setShowJoinChallenge(false),
+    onJoin: handleJoinChallenge
+  }), showAdminPanel && /*#__PURE__*/React.createElement(AdminPanel, {
+    onClose: () => setShowAdminPanel(false),
+    users: allUsers,
+    challenges: challenges,
+    flags: flags,
+    items: items,
+    currentUser: user,
+    isAdmin: isAdmin,
+    onToggleAdmin: setIsAdmin,
+    onRevokeFlag: handleRevokeFlag,
+    onAddItem: handleAddItem,
+    onUpdateUser: handleUpdateUser,
+    onLogout: handleLogout,
+    onShowCreateChallenge: () => {
+      setShowAdminPanel(false);
+      setShowCreateChallenge(true);
+    }
+  }));
+}
+
+// ============================================================================
+// ONBOARDING (with PIN and returning user support)
+// ============================================================================
+
+function Onboarding({
+  onComplete,
+  onLogin,
+  existingUsers
+}) {
+  const [mode, setMode] = useState(existingUsers.length > 0 ? 'choose' : 'register'); // 'choose', 'register', 'login'
+  const [name, setName] = useState('');
+  const [pin, setPin] = useState('');
+  const [confirmPin, setConfirmPin] = useState('');
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [error, setError] = useState('');
+  const handleRegister = () => {
+    const trimmedName = name.trim();
+    if (!trimmedName) return;
+    if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
+      setError('PIN must be exactly 4 digits');
+      return;
+    }
+    if (pin !== confirmPin) {
+      setError('PINs do not match');
+      return;
+    }
+    const nameTaken = existingUsers.some(u => u.displayName.toLowerCase() === trimmedName.toLowerCase());
+    if (nameTaken) {
+      setError('That name is already taken. Try adding an initial or nickname.');
+      return;
+    }
+    onComplete({
+      id: 'user-' + Date.now(),
+      displayName: trimmedName,
+      pin: pin,
+      createdAt: new Date().toISOString()
+    });
+  };
+  const handleLogin = () => {
+    if (!selectedUser) return;
+    if (pin !== selectedUser.pin) {
+      setError('Incorrect PIN. Contact admin if you forgot it.');
+      return;
+    }
+    onLogin(selectedUser);
+  };
+
+  // Choose: New or Returning
+  if (mode === 'choose') {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-emerald-900 to-emerald-700"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "bg-white rounded-xl p-8 max-w-md w-full shadow-xl"
+    }, /*#__PURE__*/React.createElement("h1", {
+      className: "text-2xl font-bold text-emerald-900 mb-2"
+    }, "Hub Exploration Challenge"), /*#__PURE__*/React.createElement("p", {
+      className: "text-stone-600 mb-6"
+    }, "Welcome to the exploration game for Pisgah Ranger District."), /*#__PURE__*/React.createElement("div", {
+      className: "space-y-3"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => setMode('login'),
+      className: "w-full py-3 bg-emerald-700 text-white rounded-lg font-semibold hover:bg-emerald-800 transition-colors"
+    }, "I have an account"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => setMode('register'),
+      className: "w-full py-3 bg-white text-emerald-700 border-2 border-emerald-700 rounded-lg font-semibold hover:bg-emerald-50 transition-colors"
+    }, "Create new account"))));
+  }
+
+  // Login: Select user and enter PIN
+  if (mode === 'login') {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-emerald-900 to-emerald-700"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "bg-white rounded-xl p-8 max-w-md w-full shadow-xl"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        setMode('choose');
+        setError('');
+        setPin('');
+        setSelectedUser(null);
+      },
+      className: "text-stone-500 text-sm mb-4 hover:text-stone-700"
+    }, "\u2190 Back"), /*#__PURE__*/React.createElement("h1", {
+      className: "text-2xl font-bold text-emerald-900 mb-2"
+    }, "Welcome back"), /*#__PURE__*/React.createElement("p", {
+      className: "text-stone-600 mb-6"
+    }, "Select your name and enter your PIN."), /*#__PURE__*/React.createElement("div", {
+      className: "mb-4"
+    }, /*#__PURE__*/React.createElement("label", {
+      className: "block text-sm font-medium text-stone-700 mb-2"
+    }, "Your name"), /*#__PURE__*/React.createElement("div", {
+      className: "max-h-48 overflow-y-auto border border-stone-300 rounded-lg"
+    }, existingUsers.map(u => /*#__PURE__*/React.createElement("button", {
+      key: u.id,
+      onClick: () => {
+        setSelectedUser(u);
+        setError('');
+      },
+      className: `w-full px-4 py-3 text-left border-b border-stone-100 last:border-b-0 ${selectedUser?.id === u.id ? 'bg-emerald-50 text-emerald-800' : 'hover:bg-stone-50'}`
+    }, u.displayName)))), selectedUser && /*#__PURE__*/React.createElement("div", {
+      className: "mb-4"
+    }, /*#__PURE__*/React.createElement("label", {
+      className: "block text-sm font-medium text-stone-700 mb-2"
+    }, "PIN for ", selectedUser.displayName), /*#__PURE__*/React.createElement("input", {
+      type: "password",
+      inputMode: "numeric",
+      maxLength: 4,
+      value: pin,
+      onChange: e => {
+        setPin(e.target.value.replace(/\D/g, ''));
+        setError('');
+      },
+      placeholder: "4-digit PIN",
+      className: "w-full px-4 py-3 border border-stone-300 rounded-lg text-center text-2xl tracking-widest focus:outline-none focus:ring-2 focus:ring-emerald-500"
+    }), error && /*#__PURE__*/React.createElement("p", {
+      className: "text-red-600 text-sm mt-2"
+    }, error), /*#__PURE__*/React.createElement("p", {
+      className: "text-xs text-stone-500 mt-2"
+    }, "Forgot your PIN? Contact the admin to reset it.")), /*#__PURE__*/React.createElement("button", {
+      onClick: handleLogin,
+      disabled: !selectedUser || pin.length !== 4,
+      className: "w-full py-3 bg-emerald-700 text-white rounded-lg font-semibold hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+    }, "Log In")));
+  }
+
+  // Register: New user
+  return /*#__PURE__*/React.createElement("div", {
+    className: "min-h-screen flex items-center justify-center p-6 bg-gradient-to-br from-emerald-900 to-emerald-700"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-xl p-8 max-w-md w-full shadow-xl"
+  }, existingUsers.length > 0 && /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setMode('choose');
+      setError('');
+      setPin('');
+      setConfirmPin('');
+      setName('');
+    },
+    className: "text-stone-500 text-sm mb-4 hover:text-stone-700"
+  }, "\u2190 Back"), /*#__PURE__*/React.createElement("h1", {
+    className: "text-2xl font-bold text-emerald-900 mb-2"
+  }, "Create Account"), /*#__PURE__*/React.createElement("p", {
+    className: "text-stone-600 mb-6"
+  }, "Choose a display name and set a 4-digit PIN."), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-sm font-medium text-stone-700 mb-2"
+  }, "Display name"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: name,
+    onChange: e => {
+      setName(e.target.value);
+      setError('');
+    },
+    placeholder: "e.g., Jeff P, TrailJeff",
+    autoFocus: true,
+    className: "w-full px-4 py-3 border border-stone-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-emerald-500"
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-sm font-medium text-stone-700 mb-2"
+  }, "Create a 4-digit PIN"), /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    inputMode: "numeric",
+    maxLength: 4,
+    value: pin,
+    onChange: e => {
+      setPin(e.target.value.replace(/\D/g, ''));
+      setError('');
+    },
+    placeholder: "\u2022\u2022\u2022\u2022",
+    className: "w-full px-4 py-3 border border-stone-300 rounded-lg text-center text-2xl tracking-widest focus:outline-none focus:ring-2 focus:ring-emerald-500"
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-sm font-medium text-stone-700 mb-2"
+  }, "Confirm PIN"), /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    inputMode: "numeric",
+    maxLength: 4,
+    value: confirmPin,
+    onChange: e => {
+      setConfirmPin(e.target.value.replace(/\D/g, ''));
+      setError('');
+    },
+    placeholder: "\u2022\u2022\u2022\u2022",
+    className: "w-full px-4 py-3 border border-stone-300 rounded-lg text-center text-2xl tracking-widest focus:outline-none focus:ring-2 focus:ring-emerald-500"
+  })), error && /*#__PURE__*/React.createElement("p", {
+    className: "text-red-600 text-sm"
+  }, error), /*#__PURE__*/React.createElement("button", {
+    onClick: handleRegister,
+    disabled: !name.trim() || pin.length !== 4 || confirmPin.length !== 4,
+    className: "w-full py-3 bg-emerald-700 text-white rounded-lg font-semibold hover:bg-emerald-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+  }, "Create Account"))));
+}
+
+// ============================================================================
+// CHALLENGE HOME
+// ============================================================================
+
+function ChallengeHome({
+  challenges,
+  userId,
+  activeChallengeId,
+  onSelectChallenge,
+  onJoinChallenge,
+  onShowJoinModal,
+  flags
+}) {
+  const myChallenges = challenges.filter(c => c.participants.includes(userId));
+  const availableChallenges = challenges.filter(c => !c.participants.includes(userId));
+  const getChallengeStatus = challenge => {
+    const now = new Date();
+    const start = challenge.startDate ? new Date(challenge.startDate) : null;
+    const end = challenge.endDate ? new Date(challenge.endDate) : null;
+    if (start && now < start) return 'upcoming';
+    if (end && now > end) return 'ended';
+    return 'active';
+  };
+  const getChallengeProgress = challenge => {
+    const challengeFlags = flags.filter(f => f.challengeId === challenge.id);
+    const totalItems = challenge.itemIds ? challenge.itemIds.length : '?';
+    return {
+      flagged: challengeFlags.length,
+      total: totalItems
+    };
+  };
+  const handleQuickJoin = challenge => {
+    onJoinChallenge(challenge.joinCode);
+    onSelectChallenge(challenge.id);
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "p-4 space-y-6"
+  }, /*#__PURE__*/React.createElement("section", null, /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-semibold text-stone-800 mb-3"
+  }, "Your Challenges"), myChallenges.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-lg p-6 text-center"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-stone-500 mb-2"
+  }, "You haven't joined any challenges yet."), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-stone-400"
+  }, "Join one below or enter a code.")) : /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, myChallenges.map(c => {
+    const status = getChallengeStatus(c);
+    const progress = getChallengeProgress(c);
+    const isActive = c.id === activeChallengeId;
+    return /*#__PURE__*/React.createElement("button", {
+      key: c.id,
+      onClick: () => onSelectChallenge(c.id),
+      className: `w-full bg-white rounded-lg p-4 text-left shadow-sm border-2 transition-colors ${isActive ? 'border-emerald-500' : 'border-transparent hover:border-stone-200'}`
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-start justify-between mb-2"
+    }, /*#__PURE__*/React.createElement("h3", {
+      className: "font-medium text-stone-900"
+    }, c.name), /*#__PURE__*/React.createElement("span", {
+      className: `text-xs px-2 py-0.5 rounded ${status === 'active' ? 'bg-emerald-100 text-emerald-800' : status === 'ended' ? 'bg-stone-200 text-stone-600' : 'bg-amber-100 text-amber-800'}`
+    }, status)), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-4 text-sm text-stone-500"
+    }, /*#__PURE__*/React.createElement("span", null, progress.flagged, " / ", progress.total, " flagged"), /*#__PURE__*/React.createElement("span", null, c.participants.length, " participant", c.participants.length !== 1 ? 's' : '')), isActive && /*#__PURE__*/React.createElement("div", {
+      className: "mt-2 text-xs text-emerald-700 font-medium"
+    }, "Currently viewing"));
+  }))), /*#__PURE__*/React.createElement("section", null, /*#__PURE__*/React.createElement("h2", {
+    className: "text-lg font-semibold text-stone-800 mb-3"
+  }, "Available Challenges"), availableChallenges.length === 0 ? /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-lg p-6 text-center"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-stone-500"
+  }, "No other challenges available right now.")) : /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, availableChallenges.map(c => {
+    const status = getChallengeStatus(c);
+    const isOpen = c.accessMode === 'open';
+    return /*#__PURE__*/React.createElement("div", {
+      key: c.id,
+      className: "bg-white rounded-lg p-4 shadow-sm"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-start justify-between mb-2"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2"
+    }, !isOpen && /*#__PURE__*/React.createElement(LockIcon, {
+      className: "w-4 h-4 text-stone-400"
+    }), /*#__PURE__*/React.createElement("h3", {
+      className: "font-medium text-stone-900"
+    }, c.name)), /*#__PURE__*/React.createElement("span", {
+      className: `text-xs px-2 py-0.5 rounded ${status === 'active' ? 'bg-emerald-100 text-emerald-800' : status === 'ended' ? 'bg-stone-200 text-stone-600' : 'bg-amber-100 text-amber-800'}`
+    }, status)), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center justify-between"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "text-sm text-stone-500"
+    }, c.participants.length, " participant", c.participants.length !== 1 ? 's' : ''), isOpen ? /*#__PURE__*/React.createElement("button", {
+      onClick: () => handleQuickJoin(c),
+      className: "px-4 py-1.5 bg-emerald-700 text-white text-sm font-medium rounded hover:bg-emerald-800"
+    }, "Join") : /*#__PURE__*/React.createElement("span", {
+      className: "text-sm text-stone-400"
+    }, "Invite only")));
+  }))), /*#__PURE__*/React.createElement("section", null, /*#__PURE__*/React.createElement("button", {
+    onClick: onShowJoinModal,
+    className: "w-full bg-white rounded-lg p-4 shadow-sm border-2 border-dashed border-stone-300 text-stone-600 hover:border-emerald-500 hover:text-emerald-700 transition-colors"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-center gap-2"
+  }, /*#__PURE__*/React.createElement(LockIcon, {
+    className: "w-5 h-5"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "font-medium"
+  }, "Join with Invite Code")), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-stone-400 mt-1"
+  }, "Have a code? Enter it to join a private challenge."))));
+}
+
+// ============================================================================
+// CHALLENGE VIEW (Items + Leaders tabs)
+// ============================================================================
+
+function ChallengeView({
+  challenge,
+  items,
+  flags,
+  ticks,
+  userId,
+  allUsers,
+  challengeParticipants,
+  challengeStatus,
+  filters,
+  onItemSelect,
+  isAdmin,
+  onRevokeFlag,
+  challengeTab,
+  setChallengeTab
+}) {
+  return /*#__PURE__*/React.createElement("div", {
+    className: "flex flex-col h-full"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white border-b border-stone-200 flex"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setChallengeTab('items'),
+    className: `flex-1 py-3 text-sm font-medium ${challengeTab === 'items' ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-stone-500'}`
+  }, "Items"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setChallengeTab('leaders'),
+    className: `flex-1 py-3 text-sm font-medium ${challengeTab === 'leaders' ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-stone-500'}`
+  }, "Leaders")), /*#__PURE__*/React.createElement("div", {
+    className: "flex-1 overflow-y-auto"
+  }, challengeTab === 'items' && /*#__PURE__*/React.createElement(ItemList, {
+    items: items,
+    flags: flags,
+    ticks: ticks,
+    userId: userId,
+    challengeId: challenge.id,
+    onItemSelect: onItemSelect,
+    filters: filters,
+    allUsers: allUsers
+  }), challengeTab === 'leaders' && /*#__PURE__*/React.createElement(Leaderboards, {
+    flags: flags,
+    ticks: ticks,
+    users: challengeParticipants,
+    challengeId: challenge.id,
+    allUsers: allUsers
+  })));
+}
+
+// ============================================================================
+// ITEM LIST
+// ============================================================================
+
+function ItemList({
+  items,
+  flags,
+  ticks,
+  userId,
+  challengeId,
+  onItemSelect,
+  filters,
+  allUsers
+}) {
+  // Categorize items
+  const categorizedItems = useMemo(() => {
+    const availableFlags = [];
+    const availableTicks = [];
+    const myFlags = [];
+    const myTicks = [];
+    items.forEach(item => {
+      // Apply filters
+      if (filters.type && item.type !== filters.type) return;
+      if (filters.subArea && item.subArea !== filters.subArea) return;
+      const flag = flags.find(f => f.itemId === item.id && f.challengeId === challengeId);
+      const tick = ticks.find(t => t.itemId === item.id && t.challengeId === challengeId && t.userId === userId);
+      const iMyFlag = flag && flag.userIds.includes(userId);
+      if (!flag) {
+        // No flag yet - available for flagging
+        availableFlags.push({
+          item,
+          flag: null,
+          tick: null
+        });
+      } else if (iMyFlag) {
+        // I flagged it
+        myFlags.push({
+          item,
+          flag,
+          tick
+        });
+      } else if (!tick) {
+        // Someone else flagged, I haven't ticked
+        availableTicks.push({
+          item,
+          flag,
+          tick: null
+        });
+      } else {
+        // I've ticked it
+        myTicks.push({
+          item,
+          flag,
+          tick
+        });
+      }
+    });
+
+    // Sort each list alphabetically
+    const sortFn = (a, b) => a.item.name.localeCompare(b.item.name);
+    availableFlags.sort(sortFn);
+    availableTicks.sort(sortFn);
+    myFlags.sort(sortFn);
+    myTicks.sort(sortFn);
+    return {
+      availableFlags,
+      availableTicks,
+      myFlags,
+      myTicks
+    };
+  }, [items, flags, ticks, userId, challengeId, filters]);
+  const {
+    availableFlags,
+    availableTicks,
+    myFlags,
+    myTicks
+  } = categorizedItems;
+
+  // Dashboard stats
+  const totalItems = items.filter(item => {
+    if (filters.type && item.type !== filters.type) return false;
+    if (filters.subArea && item.subArea !== filters.subArea) return false;
+    return true;
+  }).length;
+  const myCompletions = myFlags.length + myTicks.length;
+  const completionPct = totalItems > 0 ? Math.round(myCompletions / totalItems * 100) : 0;
+  const ItemCard = ({
+    item,
+    flag,
+    tick,
+    showFlagger = false
+  }) => {
+    const flagger = flag && showFlagger ? allUsers.find(u => flag.userIds.includes(u.id)) : null;
+    return /*#__PURE__*/React.createElement("button", {
+      onClick: () => onItemSelect(item),
+      className: "w-full bg-white rounded-lg p-3 text-left shadow-sm hover:shadow-md transition-shadow"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-start gap-2"
+    }, /*#__PURE__*/React.createElement(TypeIcon, {
+      type: item.type,
+      className: "w-4 h-4 text-stone-400 flex-shrink-0 mt-0.5"
+    }), /*#__PURE__*/React.createElement("div", {
+      className: "flex-1 min-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "text-sm font-medium text-stone-800 leading-tight"
+    }, item.name), /*#__PURE__*/React.createElement("div", {
+      className: "text-xs text-stone-400 mt-0.5"
+    }, item.subArea, flagger && /*#__PURE__*/React.createElement("span", null, " \xB7 ", flagger.displayName)))));
+  };
+  const Column = ({
+    title,
+    icon,
+    items,
+    emptyText,
+    showFlagger = false,
+    color = 'stone'
+  }) => {
+    const colorClasses = {
+      emerald: 'bg-emerald-100 text-emerald-800',
+      amber: 'bg-amber-100 text-amber-800',
+      stone: 'bg-stone-100 text-stone-600'
+    };
+    return /*#__PURE__*/React.createElement("div", {
+      className: "flex-1 min-w-0"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: `flex items-center gap-2 px-2 py-2 rounded-t-lg ${colorClasses[color]}`
+    }, icon, /*#__PURE__*/React.createElement("span", {
+      className: "text-xs font-semibold uppercase tracking-wide truncate"
+    }, title), /*#__PURE__*/React.createElement("span", {
+      className: "ml-auto text-xs font-bold"
+    }, items.length)), /*#__PURE__*/React.createElement("div", {
+      className: "bg-stone-50 rounded-b-lg p-2 space-y-2 min-h-[100px]"
+    }, items.length === 0 ? /*#__PURE__*/React.createElement("p", {
+      className: "text-xs text-stone-400 text-center py-4"
+    }, emptyText) : items.map(({
+      item,
+      flag,
+      tick
+    }) => /*#__PURE__*/React.createElement(ItemCard, {
+      key: item.id,
+      item: item,
+      flag: flag,
+      tick: tick,
+      showFlagger: showFlagger
+    }))));
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "p-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-lg shadow-sm p-4 mb-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-3"
+  }, /*#__PURE__*/React.createElement("h3", {
+    className: "font-semibold text-stone-800"
+  }, "Your Progress"), /*#__PURE__*/React.createElement("span", {
+    className: "text-2xl font-bold text-emerald-700"
+  }, completionPct, "%")), /*#__PURE__*/React.createElement("div", {
+    className: "w-full bg-stone-200 rounded-full h-2 mb-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-emerald-600 h-2 rounded-full transition-all duration-300",
+    style: {
+      width: `${completionPct}%`
+    }
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "flex justify-between text-sm text-stone-600"
+  }, /*#__PURE__*/React.createElement("span", null, myCompletions, " completed"), /*#__PURE__*/React.createElement("span", null, totalItems - myCompletions, " remaining"))), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 lg:grid-cols-4 gap-3"
+  }, /*#__PURE__*/React.createElement(Column, {
+    title: "Available Flags",
+    icon: /*#__PURE__*/React.createElement(FlagIcon, {
+      className: "w-4 h-4"
+    }),
+    items: availableFlags,
+    emptyText: "All flagged!",
+    color: "emerald"
+  }), /*#__PURE__*/React.createElement(Column, {
+    title: "Available Ticks",
+    icon: /*#__PURE__*/React.createElement(CheckIcon, {
+      className: "w-4 h-4"
+    }),
+    items: availableTicks,
+    emptyText: "None available",
+    showFlagger: true,
+    color: "amber"
+  }), /*#__PURE__*/React.createElement(Column, {
+    title: "My Flags",
+    icon: /*#__PURE__*/React.createElement(FlagIcon, {
+      className: "w-4 h-4"
+    }),
+    items: myFlags,
+    emptyText: "No flags yet",
+    color: "stone"
+  }), /*#__PURE__*/React.createElement(Column, {
+    title: "My Ticks",
+    icon: /*#__PURE__*/React.createElement(CheckIcon, {
+      className: "w-4 h-4"
+    }),
+    items: myTicks,
+    emptyText: "No ticks yet",
+    showFlagger: true,
+    color: "stone"
+  })));
+}
+
+// ============================================================================
+// ITEM DETAIL
+// ============================================================================
+
+function ItemDetail({
+  item,
+  flag,
+  userTick,
+  userId,
+  challengeId,
+  challengeStatus,
+  onFlag,
+  onTick,
+  onClose,
+  allUsers,
+  challengeParticipants,
+  isAdmin,
+  onRevokeFlag
+}) {
+  const [note, setNote] = useState('');
+  const [sharedWith, setSharedWith] = useState([]);
+  const [showSharedInput, setShowSharedInput] = useState(false);
+  const canFlag = !flag && challengeStatus === 'active';
+  const canTick = !userTick && flag && challengeStatus === 'active';
+  const hasCompleted = !!userTick || flag && flag.userIds.includes(userId);
+  const handleFlag = () => {
+    const flagData = {
+      id: 'flag-' + Date.now(),
+      itemId: item.id,
+      challengeId,
+      userIds: [userId, ...sharedWith],
+      timestamp: new Date().toISOString(),
+      note: note.trim() || null
+    };
+    onFlag(flagData);
+  };
+  const handleTick = () => {
+    const tickData = {
+      id: 'tick-' + Date.now(),
+      itemId: item.id,
+      challengeId,
+      userId,
+      timestamp: new Date().toISOString(),
+      note: note.trim() || null
+    };
+    onTick(tickData);
+  };
+  const flaggers = flag ? allUsers.filter(u => flag.userIds.includes(u.id)) : [];
+  const otherParticipants = challengeParticipants.filter(u => u.id !== userId);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4",
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-t-xl sm:rounded-xl w-full max-w-lg max-h-[90vh] overflow-y-auto p-6 relative",
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "absolute top-4 right-4 p-2 bg-stone-100 rounded-full hover:bg-stone-200"
+  }, /*#__PURE__*/React.createElement(CloseIcon, {
+    className: "w-5 h-5 text-stone-600"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "flex items-start gap-3 mb-4 pr-10"
+  }, /*#__PURE__*/React.createElement(TypeIcon, {
+    type: item.type,
+    className: "w-8 h-8 text-emerald-700 flex-shrink-0"
+  }), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", {
+    className: "text-xl font-bold text-stone-900"
+  }, item.name), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-stone-600"
+  }, item.subArea))), /*#__PURE__*/React.createElement("div", {
+    className: "mb-5 pb-4 border-b border-stone-200"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: `inline-flex items-center gap-1 text-sm px-2 py-1 rounded ${item.bikeAllowed === 'yes' ? 'bg-emerald-100 text-emerald-800' : item.bikeAllowed === 'partial' ? 'bg-amber-100 text-amber-800' : 'bg-stone-100 text-stone-600'}`
+  }, /*#__PURE__*/React.createElement(BikeIcon, {
+    className: "w-4 h-4"
+  }), item.bikeAllowed === 'yes' ? 'Bikes OK' : item.bikeAllowed === 'partial' ? 'Bikes partial' : 'No bikes'), item.notes && /*#__PURE__*/React.createElement("span", {
+    className: "ml-2 text-sm text-stone-500"
+  }, item.notes)), /*#__PURE__*/React.createElement("div", {
+    className: "mb-5"
+  }, flag ? /*#__PURE__*/React.createElement("div", {
+    className: "bg-stone-100 rounded-lg p-4 mb-3"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-start gap-3"
+  }, /*#__PURE__*/React.createElement(FlagIcon, {
+    className: "w-5 h-5 text-amber-700 flex-shrink-0 mt-0.5"
+  }), /*#__PURE__*/React.createElement("div", {
+    className: "flex-1"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "font-medium text-stone-800"
+  }, "Flagged by ", flaggers.map(u => u.displayName).join(', ')), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-stone-500"
+  }, new Date(flag.timestamp).toLocaleDateString()), flag.note && /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-stone-600 mt-1 italic"
+  }, "\"", flag.note, "\""))), isAdmin && /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      onRevokeFlag(flag.id);
+      onClose();
+    },
+    className: "mt-3 text-sm text-red-600 hover:text-red-800"
+  }, "Revoke flag (admin)")) : /*#__PURE__*/React.createElement("span", {
+    className: "inline-block px-3 py-1 bg-emerald-600 text-white rounded text-sm font-medium mb-3"
+  }, "Available for Flag"), hasCompleted && /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center gap-2 p-3 bg-emerald-50 rounded-lg text-emerald-800 text-sm font-medium"
+  }, /*#__PURE__*/React.createElement(CheckIcon, {
+    className: "w-5 h-5"
+  }), "You've completed this in this Challenge")), (canFlag || canTick) && /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3"
+  }, /*#__PURE__*/React.createElement("textarea", {
+    placeholder: "Optional note...",
+    value: note,
+    onChange: e => setNote(e.target.value),
+    rows: 2,
+    className: "w-full px-3 py-2 border border-stone-300 rounded-lg text-sm resize-none focus:outline-none focus:ring-2 focus:ring-emerald-500"
+  }), canFlag && /*#__PURE__*/React.createElement(React.Fragment, null, otherParticipants.length > 0 && /*#__PURE__*/React.createElement("label", {
+    className: "flex items-center gap-2 text-sm cursor-pointer"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: showSharedInput,
+    onChange: e => setShowSharedInput(e.target.checked)
+  }), "Shared flag with others"), showSharedInput && otherParticipants.length > 0 && /*#__PURE__*/React.createElement("div", {
+    className: "bg-stone-50 p-3 rounded-lg max-h-40 overflow-y-auto"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-xs text-stone-600 mb-2"
+  }, "Select who completed this with you:"), otherParticipants.map(u => /*#__PURE__*/React.createElement("label", {
+    key: u.id,
+    className: "flex items-center gap-2 py-1 text-sm cursor-pointer"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "checkbox",
+    checked: sharedWith.includes(u.id),
+    onChange: e => {
+      if (e.target.checked) {
+        setSharedWith([...sharedWith, u.id]);
+      } else {
+        setSharedWith(sharedWith.filter(id => id !== u.id));
+      }
+    }
+  }), u.displayName))), /*#__PURE__*/React.createElement("button", {
+    onClick: handleFlag,
+    className: "w-full flex items-center justify-center gap-2 py-3 bg-emerald-700 text-white rounded-lg font-semibold hover:bg-emerald-800 transition-colors"
+  }, /*#__PURE__*/React.createElement(FlagIcon, {
+    className: "w-5 h-5"
+  }), " Flag this item")), canTick && /*#__PURE__*/React.createElement("button", {
+    onClick: handleTick,
+    className: "w-full flex items-center justify-center gap-2 py-3 bg-stone-100 text-stone-800 border border-stone-300 rounded-lg font-semibold hover:bg-stone-200 transition-colors"
+  }, /*#__PURE__*/React.createElement(CheckIcon, {
+    className: "w-5 h-5"
+  }), " Log Tick")), challengeStatus === 'ended' && /*#__PURE__*/React.createElement("p", {
+    className: "text-center text-stone-500 text-sm py-4 bg-stone-50 rounded-lg"
+  }, "This challenge has ended.")));
+}
+
+// ============================================================================
+// LEADERBOARDS
+// ============================================================================
+
+function Leaderboards({
+  flags,
+  ticks,
+  users,
+  challengeId,
+  allUsers
+}) {
+  const challengeFlags = flags.filter(f => f.challengeId === challengeId);
+  const challengeTicks = ticks.filter(t => t.challengeId === challengeId);
+
+  // Use allUsers for lookups to ensure we find everyone who has activity
+  const lookupUsers = allUsers || users;
+  const flagCounts = {};
+  challengeFlags.forEach(f => {
+    f.userIds.forEach(uid => {
+      flagCounts[uid] = (flagCounts[uid] || 0) + 1;
+    });
+  });
+  const tickCounts = {};
+  challengeTicks.forEach(t => {
+    tickCounts[t.userId] = (tickCounts[t.userId] || 0) + 1;
+  });
+  // Also count flags as completions for the user
+  challengeFlags.forEach(f => {
+    f.userIds.forEach(uid => {
+      tickCounts[uid] = (tickCounts[uid] || 0) + 1;
+    });
+  });
+  const flagLeaders = Object.entries(flagCounts).map(([uId, count]) => ({
+    user: lookupUsers.find(u => u.id === uId),
+    count
+  })).filter(x => x.user).sort((a, b) => b.count - a.count);
+  const tickLeaders = Object.entries(tickCounts).map(([uId, count]) => ({
+    user: lookupUsers.find(u => u.id === uId),
+    count
+  })).filter(x => x.user).sort((a, b) => b.count - a.count);
+  return /*#__PURE__*/React.createElement("div", {
+    className: "p-4 space-y-6"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+    className: "text-lg font-semibold text-emerald-900 mb-3 flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement(FlagIcon, {
+    className: "w-5 h-5 text-amber-700"
+  }), " Most Flags"), flagLeaders.length === 0 ? /*#__PURE__*/React.createElement("p", {
+    className: "text-center text-stone-500 py-6 bg-white rounded-lg"
+  }, "No flags yet") : /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-lg shadow-sm overflow-hidden"
+  }, flagLeaders.map((entry, i) => /*#__PURE__*/React.createElement("div", {
+    key: entry.user.id,
+    className: "flex items-center gap-3 px-4 py-3 border-b border-stone-100 last:border-b-0"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: `w-7 h-7 flex items-center justify-center rounded-full text-sm font-semibold ${i === 0 ? 'bg-amber-200 text-stone-800' : 'bg-stone-100 text-stone-600'}`
+  }, i + 1), /*#__PURE__*/React.createElement("span", {
+    className: "flex-1 font-medium"
+  }, entry.user.displayName), /*#__PURE__*/React.createElement("span", {
+    className: "text-lg font-semibold text-emerald-700"
+  }, entry.count))))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+    className: "text-lg font-semibold text-emerald-900 mb-3 flex items-center gap-2"
+  }, /*#__PURE__*/React.createElement(CheckIcon, {
+    className: "w-5 h-5 text-emerald-700"
+  }), " Most Ticks"), tickLeaders.length === 0 ? /*#__PURE__*/React.createElement("p", {
+    className: "text-center text-stone-500 py-6 bg-white rounded-lg"
+  }, "No completions yet") : /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-lg shadow-sm overflow-hidden"
+  }, tickLeaders.map((entry, i) => /*#__PURE__*/React.createElement("div", {
+    key: entry.user.id,
+    className: "flex items-center gap-3 px-4 py-3 border-b border-stone-100 last:border-b-0"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: `w-7 h-7 flex items-center justify-center rounded-full text-sm font-semibold ${i === 0 ? 'bg-amber-200 text-stone-800' : 'bg-stone-100 text-stone-600'}`
+  }, i + 1), /*#__PURE__*/React.createElement("span", {
+    className: "flex-1 font-medium"
+  }, entry.user.displayName), /*#__PURE__*/React.createElement("span", {
+    className: "text-lg font-semibold text-emerald-700"
+  }, entry.count))))));
+}
+
+// ============================================================================
+// CREATE CHALLENGE MODAL (Multi-step with item selection)
+// ============================================================================
+
+function CreateChallengeModal({
+  onClose,
+  onCreate,
+  userId,
+  allItems
+}) {
+  const [step, setStep] = useState(1); // 1: basic info, 2: item selection, 3: confirmation
+  const [name, setName] = useState('');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [selectedItemIds, setSelectedItemIds] = useState(new Set(allItems.map(i => i.id)));
+  const [createdChallenge, setCreatedChallenge] = useState(null);
+
+  // Item selector state
+  const [filterType, setFilterType] = useState('');
+  const [filterSubArea, setFilterSubArea] = useState('');
+  const [sortBy, setSortBy] = useState('name');
+  const [sortDir, setSortDir] = useState('asc');
+  const subAreas = useMemo(() => {
+    const areas = new Set(allItems.map(i => i.subArea));
+    return Array.from(areas).sort();
+  }, [allItems]);
+  const filteredItems = useMemo(() => {
+    let result = [...allItems];
+    if (filterType) {
+      result = result.filter(i => i.type === filterType);
+    }
+    if (filterSubArea) {
+      result = result.filter(i => i.subArea === filterSubArea);
+    }
+    result.sort((a, b) => {
+      let cmp = 0;
+      switch (sortBy) {
+        case 'name':
+          cmp = a.name.localeCompare(b.name);
+          break;
+        case 'type':
+          cmp = a.type.localeCompare(b.type);
+          break;
+        case 'subArea':
+          cmp = a.subArea.localeCompare(b.subArea);
+          break;
+        case 'bike':
+          cmp = a.bikeAllowed.localeCompare(b.bikeAllowed);
+          break;
+        default:
+          cmp = a.name.localeCompare(b.name);
+      }
+      return sortDir === 'asc' ? cmp : -cmp;
+    });
+    return result;
+  }, [allItems, filterType, filterSubArea, sortBy, sortDir]);
+  const filteredSelectedCount = filteredItems.filter(i => selectedItemIds.has(i.id)).length;
+  const allFilteredSelected = filteredSelectedCount === filteredItems.length && filteredItems.length > 0;
+  const toggleItem = itemId => {
+    const newSet = new Set(selectedItemIds);
+    if (newSet.has(itemId)) {
+      newSet.delete(itemId);
+    } else {
+      newSet.add(itemId);
+    }
+    setSelectedItemIds(newSet);
+  };
+  const selectAllFiltered = () => {
+    const newSet = new Set(selectedItemIds);
+    filteredItems.forEach(i => newSet.add(i.id));
+    setSelectedItemIds(newSet);
+  };
+  const deselectAllFiltered = () => {
+    const newSet = new Set(selectedItemIds);
+    filteredItems.forEach(i => newSet.delete(i.id));
+    setSelectedItemIds(newSet);
+  };
+  const toggleSort = field => {
+    if (sortBy === field) {
+      setSortDir(d => d === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(field);
+      setSortDir('asc');
+    }
+  };
+  const handleCreate = () => {
+    if (!name.trim() || selectedItemIds.size === 0) return;
+    const newChallenge = {
+      id: 'challenge-' + Date.now(),
+      name: name.trim(),
+      status: 'active',
+      accessMode: 'open',
+      joinCode: generateJoinCode(),
+      startDate: startDate || null,
+      endDate: endDate || null,
+      participants: [userId],
+      createdBy: userId,
+      itemIds: Array.from(selectedItemIds)
+    };
+    setCreatedChallenge(newChallenge);
+    setStep(3);
+  };
+
+  // Step 3: Confirmation
+  if (step === 3 && createdChallenge) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4",
+      onClick: () => onCreate(createdChallenge)
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "bg-white rounded-t-xl sm:rounded-xl w-full max-w-md p-6 text-center",
+      onClick: e => e.stopPropagation()
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"
+    }, /*#__PURE__*/React.createElement(CheckIcon, {
+      className: "w-6 h-6 text-emerald-700"
+    })), /*#__PURE__*/React.createElement("h2", {
+      className: "text-xl font-bold text-stone-900 mb-2"
+    }, "Challenge Created!"), /*#__PURE__*/React.createElement("p", {
+      className: "text-stone-600 mb-2"
+    }, createdChallenge.name), /*#__PURE__*/React.createElement("p", {
+      className: "text-sm text-stone-500 mb-6"
+    }, createdChallenge.itemIds.length, " items included"), /*#__PURE__*/React.createElement("div", {
+      className: "bg-stone-100 rounded-lg p-4 mb-6"
+    }, /*#__PURE__*/React.createElement("p", {
+      className: "text-sm text-stone-600 mb-2"
+    }, "Share this code:"), /*#__PURE__*/React.createElement("p", {
+      className: "text-3xl font-bold text-emerald-800 tracking-wider"
+    }, createdChallenge.joinCode)), /*#__PURE__*/React.createElement("button", {
+      onClick: () => onCreate(createdChallenge),
+      className: "w-full py-3 bg-emerald-700 text-white rounded-lg font-semibold"
+    }, "Done")));
+  }
+
+  // Step 2: Item Selection
+  if (step === 2) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-2 sm:p-4",
+      onClick: onClose
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "bg-white rounded-xl w-full max-w-2xl h-[90vh] flex flex-col",
+      onClick: e => e.stopPropagation()
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center justify-between p-4 border-b border-stone-200"
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h2", {
+      className: "text-lg font-bold text-stone-900"
+    }, "Select Items"), /*#__PURE__*/React.createElement("p", {
+      className: "text-sm text-stone-500"
+    }, selectedItemIds.size, " of ", allItems.length, " selected")), /*#__PURE__*/React.createElement("button", {
+      onClick: onClose,
+      className: "p-2 bg-stone-100 rounded-full hover:bg-stone-200"
+    }, /*#__PURE__*/React.createElement(CloseIcon, {
+      className: "w-5 h-5 text-stone-600"
+    }))), /*#__PURE__*/React.createElement("div", {
+      className: "p-3 border-b border-stone-200 bg-stone-50 flex flex-wrap gap-2 items-center"
+    }, /*#__PURE__*/React.createElement("select", {
+      value: filterType,
+      onChange: e => setFilterType(e.target.value),
+      className: "px-2 py-1 border border-stone-300 rounded text-sm bg-white"
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "All Types"), /*#__PURE__*/React.createElement("option", {
+      value: "trail"
+    }, "Trails"), /*#__PURE__*/React.createElement("option", {
+      value: "waterfall"
+    }, "Waterfalls"), /*#__PURE__*/React.createElement("option", {
+      value: "summit"
+    }, "Summits")), /*#__PURE__*/React.createElement("select", {
+      value: filterSubArea,
+      onChange: e => setFilterSubArea(e.target.value),
+      className: "px-2 py-1 border border-stone-300 rounded text-sm bg-white"
+    }, /*#__PURE__*/React.createElement("option", {
+      value: ""
+    }, "All Sub-areas"), subAreas.map(sa => /*#__PURE__*/React.createElement("option", {
+      key: sa,
+      value: sa
+    }, sa))), /*#__PURE__*/React.createElement("div", {
+      className: "flex-1"
+    }), /*#__PURE__*/React.createElement("button", {
+      onClick: allFilteredSelected ? deselectAllFiltered : selectAllFiltered,
+      className: "px-3 py-1 text-sm font-medium text-emerald-700 hover:bg-emerald-50 rounded"
+    }, allFilteredSelected ? 'Deselect All' : 'Select All', " (", filteredItems.length, ")")), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2 px-3 py-2 bg-stone-100 text-xs font-medium text-stone-600 border-b border-stone-200"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "w-8"
+    }), /*#__PURE__*/React.createElement("button", {
+      onClick: () => toggleSort('name'),
+      className: "flex-1 text-left hover:text-stone-900"
+    }, "Name ", sortBy === 'name' && (sortDir === 'asc' ? '↑' : '↓')), /*#__PURE__*/React.createElement("button", {
+      onClick: () => toggleSort('type'),
+      className: "w-20 text-left hover:text-stone-900"
+    }, "Type ", sortBy === 'type' && (sortDir === 'asc' ? '↑' : '↓')), /*#__PURE__*/React.createElement("button", {
+      onClick: () => toggleSort('subArea'),
+      className: "w-28 text-left hover:text-stone-900 hidden sm:block"
+    }, "Sub-area ", sortBy === 'subArea' && (sortDir === 'asc' ? '↑' : '↓')), /*#__PURE__*/React.createElement("button", {
+      onClick: () => toggleSort('bike'),
+      className: "w-16 text-left hover:text-stone-900 hidden sm:block"
+    }, "Bike ", sortBy === 'bike' && (sortDir === 'asc' ? '↑' : '↓'))), /*#__PURE__*/React.createElement("div", {
+      className: "flex-1 overflow-y-auto"
+    }, filteredItems.map(item => /*#__PURE__*/React.createElement("label", {
+      key: item.id,
+      className: `flex items-center gap-2 px-3 py-2 border-b border-stone-100 cursor-pointer hover:bg-stone-50 ${selectedItemIds.has(item.id) ? 'bg-emerald-50' : ''}`
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "checkbox",
+      checked: selectedItemIds.has(item.id),
+      onChange: () => toggleItem(item.id),
+      className: "w-4 h-4 rounded border-stone-300 text-emerald-600 focus:ring-emerald-500"
+    }), /*#__PURE__*/React.createElement("span", {
+      className: "flex-1 text-sm truncate"
+    }, item.name), /*#__PURE__*/React.createElement("span", {
+      className: "w-20 text-xs text-stone-500 capitalize"
+    }, item.type), /*#__PURE__*/React.createElement("span", {
+      className: "w-28 text-xs text-stone-500 truncate hidden sm:block"
+    }, item.subArea), /*#__PURE__*/React.createElement("span", {
+      className: `w-16 text-xs hidden sm:block ${item.bikeAllowed === 'yes' ? 'text-emerald-600' : item.bikeAllowed === 'partial' ? 'text-amber-600' : 'text-stone-400'}`
+    }, item.bikeAllowed === 'yes' ? 'Yes' : item.bikeAllowed === 'partial' ? 'Partial' : 'No')))), /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center justify-between p-4 border-t border-stone-200 bg-white"
+    }, /*#__PURE__*/React.createElement("button", {
+      onClick: () => setStep(1),
+      className: "px-4 py-2 text-stone-600 hover:text-stone-800"
+    }, "Back"), /*#__PURE__*/React.createElement("button", {
+      onClick: handleCreate,
+      disabled: selectedItemIds.size === 0,
+      className: "px-6 py-2 bg-emerald-700 text-white rounded-lg font-semibold disabled:opacity-50"
+    }, "Create Challenge"))));
+  }
+
+  // Step 1: Basic Info
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4",
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-t-xl sm:rounded-xl w-full max-w-md p-6 relative",
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "absolute top-4 right-4 p-2 bg-stone-100 rounded-full hover:bg-stone-200"
+  }, /*#__PURE__*/React.createElement(CloseIcon, {
+    className: "w-5 h-5 text-stone-600"
+  })), /*#__PURE__*/React.createElement("h2", {
+    className: "text-xl font-bold text-stone-900 mb-5 pr-10"
+  }, "New Challenge"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-sm font-medium text-stone-700 mb-1"
+  }, "Name"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: name,
+    onChange: e => setName(e.target.value),
+    placeholder: "e.g., Spring 2026",
+    autoFocus: true,
+    className: "w-full px-3 py-2 border border-stone-300 rounded-lg text-sm"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-sm font-medium text-stone-700 mb-1"
+  }, "Start"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: startDate,
+    onChange: e => setStartDate(e.target.value),
+    className: "w-full px-3 py-2 border border-stone-300 rounded-lg text-sm"
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-sm font-medium text-stone-700 mb-1"
+  }, "End"), /*#__PURE__*/React.createElement("input", {
+    type: "date",
+    value: endDate,
+    onChange: e => setEndDate(e.target.value),
+    className: "w-full px-3 py-2 border border-stone-300 rounded-lg text-sm"
+  }))), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setStep(2),
+    disabled: !name.trim(),
+    className: "w-full py-3 bg-emerald-700 text-white rounded-lg font-semibold disabled:opacity-50"
+  }, "Next: Select Items"))));
+}
+
+// ============================================================================
+// JOIN CHALLENGE MODAL
+// ============================================================================
+
+function JoinChallengeModal({
+  onClose,
+  onJoin
+}) {
+  const [code, setCode] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(null);
+  const handleSubmit = () => {
+    if (!code.trim()) return;
+    const result = onJoin(code.trim());
+    if (result.success) {
+      setSuccess(result.challenge);
+    } else {
+      setError('Challenge not found.');
+    }
+  };
+  if (success) {
+    return /*#__PURE__*/React.createElement("div", {
+      className: "fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4",
+      onClick: onClose
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "bg-white rounded-t-xl sm:rounded-xl w-full max-w-md p-6 text-center",
+      onClick: e => e.stopPropagation()
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-4"
+    }, /*#__PURE__*/React.createElement(CheckIcon, {
+      className: "w-6 h-6 text-emerald-700"
+    })), /*#__PURE__*/React.createElement("h2", {
+      className: "text-xl font-bold text-stone-900 mb-2"
+    }, "You're In!"), /*#__PURE__*/React.createElement("p", {
+      className: "text-stone-600 mb-6"
+    }, "Joined ", /*#__PURE__*/React.createElement("strong", null, success.name)), /*#__PURE__*/React.createElement("button", {
+      onClick: onClose,
+      className: "w-full py-3 bg-emerald-700 text-white rounded-lg font-semibold"
+    }, "Start Exploring")));
+  }
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4",
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-t-xl sm:rounded-xl w-full max-w-md p-6 relative",
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "absolute top-4 right-4 p-2 bg-stone-100 rounded-full hover:bg-stone-200"
+  }, /*#__PURE__*/React.createElement(CloseIcon, {
+    className: "w-5 h-5 text-stone-600"
+  })), /*#__PURE__*/React.createElement("h2", {
+    className: "text-xl font-bold text-stone-900 mb-2 pr-10"
+  }, "Join Challenge"), /*#__PURE__*/React.createElement("p", {
+    className: "text-stone-600 text-sm mb-5"
+  }, "Enter the code from the challenge creator."), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: code,
+    onChange: e => {
+      setCode(e.target.value.toUpperCase());
+      setError('');
+    },
+    onKeyDown: e => e.key === 'Enter' && handleSubmit(),
+    placeholder: "e.g., TRAIL42",
+    autoFocus: true,
+    className: "w-full px-4 py-3 border border-stone-300 rounded-lg text-center text-xl font-bold tracking-wider uppercase"
+  }), error && /*#__PURE__*/React.createElement("p", {
+    className: "text-red-600 text-sm"
+  }, error), /*#__PURE__*/React.createElement("button", {
+    onClick: handleSubmit,
+    disabled: !code.trim(),
+    className: "w-full py-3 bg-emerald-700 text-white rounded-lg font-semibold disabled:opacity-50"
+  }, "Join"))));
+}
+
+// ============================================================================
+// ADMIN PANEL
+// ============================================================================
+
+function AdminPanel({
+  onClose,
+  users,
+  challenges,
+  flags,
+  items,
+  currentUser,
+  isAdmin,
+  onToggleAdmin,
+  onRevokeFlag,
+  onAddItem,
+  onUpdateUser,
+  onLogout,
+  onShowCreateChallenge
+}) {
+  const [activeTab, setActiveTab] = useState('account');
+  const [passwordInput, setPasswordInput] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [showAddItem, setShowAddItem] = useState(false);
+
+  // Change PIN state
+  const [showChangePin, setShowChangePin] = useState(false);
+  const [currentPin, setCurrentPin] = useState('');
+  const [newPin, setNewPin] = useState('');
+  const [confirmNewPin, setConfirmNewPin] = useState('');
+  const [pinError, setPinError] = useState('');
+  const [pinSuccess, setPinSuccess] = useState('');
+
+  // Admin reset PIN state
+  const [resetPinUserId, setResetPinUserId] = useState(null);
+  const [resetPinValue, setResetPinValue] = useState('');
+
+  // Add item form state
+  const [newItemName, setNewItemName] = useState('');
+  const [newItemType, setNewItemType] = useState('trail');
+  const [newItemSubArea, setNewItemSubArea] = useState('');
+  const [newItemBike, setNewItemBike] = useState('yes');
+  const [newItemNotes, setNewItemNotes] = useState('');
+  const subAreas = useMemo(() => {
+    const areas = new Set(items.map(i => i.subArea));
+    return Array.from(areas).sort();
+  }, [items]);
+  const handleChangePin = () => {
+    setPinError('');
+    setPinSuccess('');
+    if (currentPin !== currentUser.pin) {
+      setPinError('Current PIN is incorrect');
+      return;
+    }
+    if (newPin.length !== 4 || !/^\d{4}$/.test(newPin)) {
+      setPinError('New PIN must be exactly 4 digits');
+      return;
+    }
+    if (newPin !== confirmNewPin) {
+      setPinError('New PINs do not match');
+      return;
+    }
+    onUpdateUser({
+      ...currentUser,
+      pin: newPin
+    });
+    setPinSuccess('PIN updated successfully!');
+    setCurrentPin('');
+    setNewPin('');
+    setConfirmNewPin('');
+    setShowChangePin(false);
+  };
+  const handleAdminResetPin = userId => {
+    if (resetPinValue.length !== 4 || !/^\d{4}$/.test(resetPinValue)) {
+      return;
+    }
+    const userToUpdate = users.find(u => u.id === userId);
+    if (userToUpdate) {
+      onUpdateUser({
+        ...userToUpdate,
+        pin: resetPinValue
+      });
+    }
+    setResetPinUserId(null);
+    setResetPinValue('');
+  };
+  const handleAdminToggle = () => {
+    if (isAdmin) {
+      onToggleAdmin(false);
+    } else {
+      if (passwordInput === ADMIN_PASSWORD) {
+        onToggleAdmin(true);
+        setPasswordInput('');
+        setPasswordError('');
+      } else {
+        setPasswordError('Incorrect password');
+      }
+    }
+  };
+  const handleAddItem = () => {
+    if (!newItemName.trim() || !newItemSubArea.trim()) return;
+    const newItem = {
+      id: 'item-' + Date.now(),
+      name: newItemName.trim(),
+      type: newItemType,
+      area: AREAS.PISGAH,
+      // Default to Pisgah for now
+      subArea: newItemSubArea.trim(),
+      bikeAllowed: newItemBike,
+      notes: newItemNotes.trim()
+    };
+    onAddItem(newItem);
+
+    // Reset form
+    setNewItemName('');
+    setNewItemType('trail');
+    setNewItemSubArea('');
+    setNewItemBike('yes');
+    setNewItemNotes('');
+    setShowAddItem(false);
+  };
+  return /*#__PURE__*/React.createElement("div", {
+    className: "fixed inset-0 bg-black/50 flex items-end sm:items-center justify-center z-50 p-4",
+    onClick: onClose
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-white rounded-t-xl sm:rounded-xl w-full max-w-lg max-h-[85vh] overflow-hidden flex flex-col",
+    onClick: e => e.stopPropagation()
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between p-4 border-b border-stone-200"
+  }, /*#__PURE__*/React.createElement("h2", {
+    className: "text-xl font-bold text-stone-900"
+  }, "Settings"), /*#__PURE__*/React.createElement("button", {
+    onClick: onClose,
+    className: "p-2 bg-stone-100 rounded-full hover:bg-stone-200"
+  }, /*#__PURE__*/React.createElement(CloseIcon, {
+    className: "w-5 h-5 text-stone-600"
+  }))), /*#__PURE__*/React.createElement("div", {
+    className: "p-4 border-b border-stone-200 bg-stone-50"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "flex items-center justify-between mb-2"
+  }, /*#__PURE__*/React.createElement("span", {
+    className: "font-medium text-stone-800"
+  }, "Admin Mode"), /*#__PURE__*/React.createElement("span", {
+    className: `text-sm px-2 py-1 rounded ${isAdmin ? 'bg-amber-200 text-amber-800' : 'bg-stone-200 text-stone-600'}`
+  }, isAdmin ? 'ON' : 'OFF')), !isAdmin ? /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    value: passwordInput,
+    onChange: e => {
+      setPasswordInput(e.target.value);
+      setPasswordError('');
+    },
+    onKeyDown: e => e.key === 'Enter' && handleAdminToggle(),
+    placeholder: "Enter password",
+    className: "flex-1 px-3 py-2 border border-stone-300 rounded text-sm"
+  }), /*#__PURE__*/React.createElement("button", {
+    onClick: handleAdminToggle,
+    className: "px-4 py-2 bg-emerald-700 text-white rounded text-sm font-medium"
+  }, "Unlock")) : /*#__PURE__*/React.createElement("button", {
+    onClick: handleAdminToggle,
+    className: "text-sm text-stone-600 hover:text-stone-800"
+  }, "Lock admin mode"), passwordError && /*#__PURE__*/React.createElement("p", {
+    className: "text-red-600 text-sm mt-1"
+  }, passwordError)), /*#__PURE__*/React.createElement("div", {
+    className: "flex border-b border-stone-200 overflow-x-auto"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setActiveTab('account'),
+    className: `flex-1 py-3 text-sm font-medium whitespace-nowrap ${activeTab === 'account' ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-stone-500'}`
+  }, "Account"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setActiveTab('users'),
+    className: `flex-1 py-3 text-sm font-medium whitespace-nowrap ${activeTab === 'users' ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-stone-500'}`
+  }, "Users (", users.length, ")"), /*#__PURE__*/React.createElement("button", {
+    onClick: () => setActiveTab('challenges'),
+    className: `flex-1 py-3 text-sm font-medium whitespace-nowrap ${activeTab === 'challenges' ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-stone-500'}`
+  }, "Challenges"), isAdmin && /*#__PURE__*/React.createElement("button", {
+    onClick: () => setActiveTab('items'),
+    className: `flex-1 py-3 text-sm font-medium whitespace-nowrap ${activeTab === 'items' ? 'text-emerald-700 border-b-2 border-emerald-700' : 'text-stone-500'}`
+  }, "Items")), /*#__PURE__*/React.createElement("div", {
+    className: "flex-1 overflow-y-auto p-4"
+  }, activeTab === 'account' && /*#__PURE__*/React.createElement("div", {
+    className: "space-y-4"
+  }, /*#__PURE__*/React.createElement("div", {
+    className: "bg-stone-50 rounded-lg p-4"
+  }, /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-stone-600"
+  }, "Logged in as"), /*#__PURE__*/React.createElement("p", {
+    className: "text-lg font-semibold text-stone-900"
+  }, currentUser.displayName)), !showChangePin ? /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowChangePin(true),
+    className: "w-full py-3 text-emerald-700 border border-emerald-700 rounded-lg font-medium hover:bg-emerald-50"
+  }, "Change PIN") : /*#__PURE__*/React.createElement("div", {
+    className: "bg-stone-50 rounded-lg p-4 space-y-3"
+  }, /*#__PURE__*/React.createElement("h4", {
+    className: "font-medium text-stone-900"
+  }, "Change PIN"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-xs font-medium text-stone-600 mb-1"
+  }, "Current PIN"), /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    inputMode: "numeric",
+    maxLength: 4,
+    value: currentPin,
+    onChange: e => {
+      setCurrentPin(e.target.value.replace(/\D/g, ''));
+      setPinError('');
+    },
+    placeholder: "\u2022\u2022\u2022\u2022",
+    className: "w-full px-3 py-2 border border-stone-300 rounded text-center text-xl tracking-widest"
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-xs font-medium text-stone-600 mb-1"
+  }, "New PIN"), /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    inputMode: "numeric",
+    maxLength: 4,
+    value: newPin,
+    onChange: e => {
+      setNewPin(e.target.value.replace(/\D/g, ''));
+      setPinError('');
+    },
+    placeholder: "\u2022\u2022\u2022\u2022",
+    className: "w-full px-3 py-2 border border-stone-300 rounded text-center text-xl tracking-widest"
+  })), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-xs font-medium text-stone-600 mb-1"
+  }, "Confirm New PIN"), /*#__PURE__*/React.createElement("input", {
+    type: "password",
+    inputMode: "numeric",
+    maxLength: 4,
+    value: confirmNewPin,
+    onChange: e => {
+      setConfirmNewPin(e.target.value.replace(/\D/g, ''));
+      setPinError('');
+    },
+    placeholder: "\u2022\u2022\u2022\u2022",
+    className: "w-full px-3 py-2 border border-stone-300 rounded text-center text-xl tracking-widest"
+  })), pinError && /*#__PURE__*/React.createElement("p", {
+    className: "text-red-600 text-sm"
+  }, pinError), pinSuccess && /*#__PURE__*/React.createElement("p", {
+    className: "text-emerald-600 text-sm"
+  }, pinSuccess), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => {
+      setShowChangePin(false);
+      setCurrentPin('');
+      setNewPin('');
+      setConfirmNewPin('');
+      setPinError('');
+    },
+    className: "flex-1 py-2 text-stone-600"
+  }, "Cancel"), /*#__PURE__*/React.createElement("button", {
+    onClick: handleChangePin,
+    disabled: currentPin.length !== 4 || newPin.length !== 4 || confirmNewPin.length !== 4,
+    className: "flex-1 py-2 bg-emerald-700 text-white rounded font-medium disabled:opacity-50"
+  }, "Update PIN"))), /*#__PURE__*/React.createElement("button", {
+    onClick: onLogout,
+    className: "w-full py-3 text-red-600 border border-red-300 rounded-lg font-medium hover:bg-red-50"
+  }, "Log Out")), activeTab === 'users' && /*#__PURE__*/React.createElement("div", {
+    className: "space-y-2"
+  }, users.length === 0 ? /*#__PURE__*/React.createElement("p", {
+    className: "text-center text-stone-500 py-8"
+  }, "No users yet.") : users.map(u => {
+    const userChallenges = challenges.filter(c => c.participants.includes(u.id));
+    return /*#__PURE__*/React.createElement("div", {
+      key: u.id,
+      className: "bg-stone-50 rounded-lg p-3"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center justify-between"
+    }, /*#__PURE__*/React.createElement("span", {
+      className: "font-medium"
+    }, u.displayName, u.id === currentUser.id && /*#__PURE__*/React.createElement("span", {
+      className: "ml-2 text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded"
+    }, "you")), /*#__PURE__*/React.createElement("span", {
+      className: "text-xs text-stone-500"
+    }, new Date(u.createdAt).toLocaleDateString())), userChallenges.length > 0 && /*#__PURE__*/React.createElement("div", {
+      className: "mt-2 flex flex-wrap gap-1"
+    }, userChallenges.map(c => /*#__PURE__*/React.createElement("span", {
+      key: c.id,
+      className: "text-xs bg-stone-200 text-stone-600 px-2 py-0.5 rounded"
+    }, c.name))), isAdmin && u.id !== currentUser.id && /*#__PURE__*/React.createElement("div", {
+      className: "mt-2 pt-2 border-t border-stone-200"
+    }, resetPinUserId === u.id ? /*#__PURE__*/React.createElement("div", {
+      className: "flex items-center gap-2"
+    }, /*#__PURE__*/React.createElement("input", {
+      type: "text",
+      inputMode: "numeric",
+      maxLength: 4,
+      value: resetPinValue,
+      onChange: e => setResetPinValue(e.target.value.replace(/\D/g, '')),
+      placeholder: "New PIN",
+      className: "flex-1 px-2 py-1 border border-stone-300 rounded text-sm text-center"
+    }), /*#__PURE__*/React.createElement("button", {
+      onClick: () => handleAdminResetPin(u.id),
+      disabled: resetPinValue.length !== 4,
+      className: "px-3 py-1 bg-amber-600 text-white rounded text-sm disabled:opacity-50"
+    }, "Set"), /*#__PURE__*/React.createElement("button", {
+      onClick: () => {
+        setResetPinUserId(null);
+        setResetPinValue('');
+      },
+      className: "px-2 py-1 text-stone-500 text-sm"
+    }, "Cancel")) : /*#__PURE__*/React.createElement("button", {
+      onClick: () => setResetPinUserId(u.id),
+      className: "text-xs text-amber-700 hover:text-amber-800"
+    }, "Reset PIN")));
+  })), activeTab === 'challenges' && /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3"
+  }, isAdmin && /*#__PURE__*/React.createElement("button", {
+    onClick: onShowCreateChallenge,
+    className: "w-full py-3 border-2 border-dashed border-amber-300 rounded-lg text-amber-700 hover:border-amber-500 hover:bg-amber-50 flex items-center justify-center gap-2"
+  }, /*#__PURE__*/React.createElement(PlusIcon, {
+    className: "w-5 h-5"
+  }), "Create New Challenge"), challenges.map(c => {
+    const creator = users.find(u => u.id === c.createdBy);
+    const challengeFlags = flags.filter(f => f.challengeId === c.id);
+    const itemCount = c.itemIds ? c.itemIds.length : 'all';
+    return /*#__PURE__*/React.createElement("div", {
+      key: c.id,
+      className: "bg-stone-50 rounded-lg p-4"
+    }, /*#__PURE__*/React.createElement("div", {
+      className: "flex items-start justify-between mb-2"
+    }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("h3", {
+      className: "font-medium"
+    }, c.name), /*#__PURE__*/React.createElement("p", {
+      className: "text-xs text-stone-500"
+    }, c.participants.length, " participants \xB7 ", challengeFlags.length, " flags \xB7 ", itemCount, " items"))), /*#__PURE__*/React.createElement("div", {
+      className: "bg-white border border-stone-200 rounded p-3 mt-2"
+    }, /*#__PURE__*/React.createElement("p", {
+      className: "text-xs text-stone-500 mb-1"
+    }, "Join Code"), /*#__PURE__*/React.createElement("p", {
+      className: "text-lg font-bold text-emerald-800 tracking-wider"
+    }, c.joinCode)));
+  })), activeTab === 'items' && isAdmin && /*#__PURE__*/React.createElement("div", {
+    className: "space-y-3"
+  }, !showAddItem ? /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowAddItem(true),
+    className: "w-full py-3 border-2 border-dashed border-stone-300 rounded-lg text-stone-600 hover:border-emerald-500 hover:text-emerald-700 flex items-center justify-center gap-2"
+  }, /*#__PURE__*/React.createElement(PlusIcon, {
+    className: "w-5 h-5"
+  }), "Add New Item") : /*#__PURE__*/React.createElement("div", {
+    className: "bg-emerald-50 border border-emerald-200 rounded-lg p-4 space-y-3"
+  }, /*#__PURE__*/React.createElement("h4", {
+    className: "font-medium text-emerald-900"
+  }, "Add New Item"), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-xs font-medium text-stone-600 mb-1"
+  }, "Name"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: newItemName,
+    onChange: e => setNewItemName(e.target.value),
+    placeholder: "e.g., Buckwheat Knob Trail",
+    className: "w-full px-3 py-2 border border-stone-300 rounded text-sm"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "grid grid-cols-2 gap-3"
+  }, /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-xs font-medium text-stone-600 mb-1"
+  }, "Type"), /*#__PURE__*/React.createElement("select", {
+    value: newItemType,
+    onChange: e => setNewItemType(e.target.value),
+    className: "w-full px-3 py-2 border border-stone-300 rounded text-sm"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "trail"
+  }, "Trail"), /*#__PURE__*/React.createElement("option", {
+    value: "waterfall"
+  }, "Waterfall"), /*#__PURE__*/React.createElement("option", {
+    value: "summit"
+  }, "Summit"))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-xs font-medium text-stone-600 mb-1"
+  }, "Bike Allowed"), /*#__PURE__*/React.createElement("select", {
+    value: newItemBike,
+    onChange: e => setNewItemBike(e.target.value),
+    className: "w-full px-3 py-2 border border-stone-300 rounded text-sm"
+  }, /*#__PURE__*/React.createElement("option", {
+    value: "yes"
+  }, "Yes"), /*#__PURE__*/React.createElement("option", {
+    value: "no"
+  }, "No"), /*#__PURE__*/React.createElement("option", {
+    value: "partial"
+  }, "Partial")))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-xs font-medium text-stone-600 mb-1"
+  }, "Sub-area"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: newItemSubArea,
+    onChange: e => setNewItemSubArea(e.target.value),
+    placeholder: "e.g., Bent Creek",
+    list: "subarea-suggestions",
+    className: "w-full px-3 py-2 border border-stone-300 rounded text-sm"
+  }), /*#__PURE__*/React.createElement("datalist", {
+    id: "subarea-suggestions"
+  }, subAreas.map(sa => /*#__PURE__*/React.createElement("option", {
+    key: sa,
+    value: sa
+  })))), /*#__PURE__*/React.createElement("div", null, /*#__PURE__*/React.createElement("label", {
+    className: "block text-xs font-medium text-stone-600 mb-1"
+  }, "Notes (optional)"), /*#__PURE__*/React.createElement("input", {
+    type: "text",
+    value: newItemNotes,
+    onChange: e => setNewItemNotes(e.target.value),
+    placeholder: "e.g., Directional, Gravel, etc.",
+    className: "w-full px-3 py-2 border border-stone-300 rounded text-sm"
+  })), /*#__PURE__*/React.createElement("div", {
+    className: "flex gap-2"
+  }, /*#__PURE__*/React.createElement("button", {
+    onClick: () => setShowAddItem(false),
+    className: "flex-1 py-2 text-stone-600 hover:text-stone-800"
+  }, "Cancel"), /*#__PURE__*/React.createElement("button", {
+    onClick: handleAddItem,
+    disabled: !newItemName.trim() || !newItemSubArea.trim(),
+    className: "flex-1 py-2 bg-emerald-700 text-white rounded font-medium disabled:opacity-50"
+  }, "Add Item"))), /*#__PURE__*/React.createElement("p", {
+    className: "text-sm text-stone-500"
+  }, items.length, " items total"), /*#__PURE__*/React.createElement("div", {
+    className: "space-y-1 max-h-60 overflow-y-auto"
+  }, items.slice().sort((a, b) => a.name.localeCompare(b.name)).map(item => /*#__PURE__*/React.createElement("div", {
+    key: item.id,
+    className: "flex items-center gap-2 py-1 text-sm"
+  }, /*#__PURE__*/React.createElement(TypeIcon, {
+    type: item.type,
+    className: "w-4 h-4 text-stone-400"
+  }), /*#__PURE__*/React.createElement("span", {
+    className: "flex-1 truncate"
+  }, item.name), /*#__PURE__*/React.createElement("span", {
+    className: "text-xs text-stone-400"
+  }, item.subArea))))))));
+}
+
+// Mount the app
+const root = ReactDOM.createRoot(document.getElementById("root"));
+root.render(/*#__PURE__*/React.createElement(ErrorBoundary, null, /*#__PURE__*/React.createElement(App, null)));
+</script></body></html>
